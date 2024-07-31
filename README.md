@@ -2,6 +2,11 @@
 
 Aplikacja Laravel komunikująca się z API Petstore, umożliwiająca zarządzanie zwierzętami (dodawanie, edycję, usuwanie i wyświetlanie szczegółów).
 
+## Wymagania
+
+- Docker
+- Docker Compose
+
 ## Instalacja
 
 1. Sklonuj repozytorium:
@@ -19,7 +24,12 @@ Aplikacja Laravel komunikująca się z API Petstore, umożliwiająca zarządzani
     cp .env.example .env
     ```
 
-    W pliku `.env` skonfiguruj inne ustawienia środowiskowe.
+    W pliku `.env` skonfiguruj inne ustawienia środowiskowe, w tym ustawienia cache:
+
+    ```env
+    CACHE_DRIVER=file
+    SESSION_DRIVER=file
+    ```
 
 3. Uruchom kontenery Docker:
 
