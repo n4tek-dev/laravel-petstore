@@ -2,11 +2,6 @@
 
 Aplikacja Laravel komunikująca się z API Petstore, umożliwiająca zarządzanie zwierzętami (dodawanie, edycję, usuwanie i wyświetlanie szczegółów).
 
-## Wymagania
-
-- Docker
-- Docker Compose
-
 ## Instalacja
 
 1. Sklonuj repozytorium:
