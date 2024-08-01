@@ -1,133 +1,114 @@
 <?php
 
-namespace Tests\Unit;
+namespace Tests\Unit\Controllers;
 
 use Tests\TestCase;
-use Illuminate\Support\Facades\Http;
+use Mockery;
 use App\Http\Controllers\PetController;
+use App\Services\PetService;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
 
 class PetControllerTest extends TestCase
 {
-    protected $randomId;
+    protected $petService;
+    protected $controller;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->randomId = random_int(1, PHP_INT_MAX);
+        $this->petService = Mockery::mock(PetService::class);
+        $this->controller = new PetController($this->petService);
+    }
+
+    protected function tearDown(): void
+    {
+        Mockery::close();
+        parent::tearDown();
     }
 
     public function testIndex()
     {
-        Http::fake([
-            'https://petstore.swagger.io/v2/pet/findByStatus?status=available' => Http::response([
-                ['id' => $this->randomId, 'name' => 'Doggie', 'status' => 'available']
-            ], 200),
-            'https://petstore.swagger.io/v2/pet/findByStatus?status=pending' => Http::response([], 200),
-            'https://petstore.swagger.io/v2/pet/findByStatus?status=sold' => Http::response([], 200),
-        ]);
+        $pets = ['pet1', 'pet2'];
+        $this->petService->shouldReceive('getAllPets')->once()->andReturn($pets);
 
-        $controller = new PetController();
-        $response = $controller->index();
+        $response = $this->controller->index();
 
-        $viewData = $response->getData();
-        $this->assertArrayHasKey('pets', $viewData);
-        $this->assertCount(1, $viewData['pets']);
-        $this->assertEquals($this->randomId, $viewData['pets'][0]->id);
+        $this->assertInstanceOf(View::class, $response);
+        $this->assertEquals('pets.index', $response->name());
+        $this->assertArrayHasKey('pets', $response->getData());
     }
 
     public function testCreate()
     {
-        $controller = new PetController();
-        $response = $controller->create();
+        $response = $this->controller->create();
 
+        $this->assertInstanceOf(View::class, $response);
         $this->assertEquals('pets.create', $response->name());
     }
 
     public function testStore()
     {
-        Http::fake([
-            'https://petstore.swagger.io/v2/pet' => Http::response([], 200)
-        ]);
-
-        $controller = new PetController();
         $request = Request::create('/pets', 'POST', [
-            'name' => 'Doggie',
+            'name' => 'Buddy',
             'status' => 'available'
         ]);
 
-        $response = $controller->store($request);
+        $this->petService->shouldReceive('createPet')->once()->andReturn(true);
 
-        $this->assertEquals(302, $response->getStatusCode());
+        $response = $this->controller->store($request);
+
+        $this->assertInstanceOf(RedirectResponse::class, $response);
         $this->assertEquals(route('pets.index'), $response->headers->get('Location'));
+    }
+
+    public function testShow()
+    {
+        $pet = ['id' => 1, 'name' => 'Buddy'];
+        $this->petService->shouldReceive('getPetById')->with(1)->once()->andReturn($pet);
+
+        $response = $this->controller->show(1);
+
+        $this->assertInstanceOf(View::class, $response);
+        $this->assertEquals('pets.show', $response->name());
+        $this->assertArrayHasKey('pet', $response->getData());
     }
 
     public function testEdit()
     {
-        Http::fake([
-            "https://petstore.swagger.io/v2/pet/{$this->randomId}" => Http::response([
-                'id' => $this->randomId,
-                'name' => 'Doggie',
-                'status' => 'available'
-            ], 200)
+        $pet = ['id' => 1, 'name' => 'Buddy'];
+        $this->petService->shouldReceive('getPetById')->with(1)->once()->andReturn($pet);
+
+        $response = $this->controller->edit(1);
+
+        $this->assertInstanceOf(View::class, $response);
+        $this->assertEquals('pets.edit', $response->name());
+        $this->assertArrayHasKey('pet', $response->getData());
+    }
+
+    public function testUpdate()
+    {
+        $request = Request::create('/pets/1', 'PUT', [
+            'name' => 'Buddy',
+            'status' => 'available'
         ]);
 
-        $controller = new PetController();
-        $response = $controller->edit($this->randomId);
+        $this->petService->shouldReceive('updatePet')->with(1, Mockery::type('array'))->once()->andReturn(true);
 
-        $viewData = $response->getData();
-        $this->assertArrayHasKey('pet', $viewData);
-        $this->assertEquals($this->randomId, $viewData['pet']->id);
+        $response = $this->controller->update($request, 1);
+
+        $this->assertInstanceOf(RedirectResponse::class, $response);
+        $this->assertEquals(route('pets.show', 1), $response->headers->get('Location'));
     }
 
     public function testDestroy()
     {
-        Http::fake([
-            "https://petstore.swagger.io/v2/pet/{$this->randomId}" => Http::response([], 200)
-        ]);
+        $this->petService->shouldReceive('deletePet')->with(1)->once()->andReturn(true);
 
-        $controller = new PetController();
-        $response = $controller->destroy($this->randomId);
+        $response = $this->controller->destroy(1);
 
-        $this->assertEquals(302, $response->getStatusCode());
+        $this->assertInstanceOf(RedirectResponse::class, $response);
         $this->assertEquals(route('pets.index'), $response->headers->get('Location'));
-    }
-
-    public function testShowPet()
-    {
-        Http::fake([
-            "https://petstore.swagger.io/v2/pet/{$this->randomId}" => Http::response([
-                'id' => $this->randomId,
-                'name' => 'Doggie',
-                'status' => 'available'
-            ], 200)
-        ]);
-
-        $controller = new PetController();
-        $response = $controller->show($this->randomId);
-
-        $viewData = $response->getData();
-        $this->assertArrayHasKey('pet', $viewData);
-        $this->assertEquals($this->randomId, $viewData['pet']->id);
-        $this->assertEquals('Doggie', $viewData['pet']->name);
-        $this->assertEquals('available', $viewData['pet']->status);
-    }
-
-    public function testUpdatePet()
-    {
-        Http::fake([
-            'https://petstore.swagger.io/v2/pet' => Http::response([], 200)
-        ]);
-
-        $controller = new PetController();
-        $request = Request::create("/pets/{$this->randomId}", 'PUT', [
-            'name' => 'Doggie',
-            'status' => 'available'
-        ]);
-
-        $response = $controller->update($request, $this->randomId);
-
-        $this->assertEquals(302, $response->getStatusCode());
-        $this->assertEquals(route('pets.show', $this->randomId), $response->headers->get('Location'));
     }
 }
